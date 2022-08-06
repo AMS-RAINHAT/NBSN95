@@ -131,8 +131,8 @@ int main(void)
 	reboot_information_print();
 	product_information_print();
 	List_Init(sys.list);
-	led_on(1000);
-	HAL_Delay(3000);
+	led_on(3000);
+	//HAL_Delay(3000);
 	HAL_UART_Receive_IT(&huart2,(uint8_t*)&rxbuf,RXSIZE);
 	HAL_UART_Receive_IT(&hlpuart1,(uint8_t*)&rxbuf_lp,RXSIZE);
 	My_UARTEx_StopModeWakeUp(&huart2);				//Enable serial port wake up
@@ -154,8 +154,10 @@ int main(void)
 #else
 	task_num = _AT_IDLE;
 #endif
+	int loopcounter = 0;
   while (1)
   {
+		printf("loop %i\r\n", loopcounter++);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
