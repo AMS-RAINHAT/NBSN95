@@ -54,7 +54,6 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
-extern uint16_t get_distance_uart1(); // read only access to distance from A0221AU
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

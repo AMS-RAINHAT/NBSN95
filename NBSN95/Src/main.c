@@ -42,7 +42,7 @@
 /* debug macro definition ----------------------------------------------------*/
 
 /* NBIOT task macro definition, the task in NBTASK will not be executed after commenting out -*/
-//#define NBIOT
+#define NBIOT
 
 //#define ST_DEBUG	
 #ifndef ST_DEBUG
@@ -52,7 +52,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define AMS_DEBUG
+//#define AMS_DEBUG 	// only perform UART1 interface for A0221AU ultrasonic sensor
 #define uart1_nibble_size 4
 /* USER CODE END PD */
 
@@ -73,12 +73,7 @@
 	static uint32_t loopcount = 0; // AMS - remove once debugged
 #endif // AMS_DEBUG
 
-static uint16_t distance_uart1; // max 4000mm
-uint16_t get_distance_uart1(void) // return to extern
-{
-	return distance_uart1;
-}
-
+uint16_t distance_uart1; // max 4000mm
 
 // USART1
 static uint8_t uart1_nibble[uart1_nibble_size] = {0};
@@ -121,7 +116,7 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
 	#ifdef AMS_DEBUG
-		__HAL_DBGMCU_FREEZE_IWDG(); // AMS - remove once debugged
+		__HAL_DBGMCU_FREEZE_IWDG(); // AMS - remove once debugged - did not work
 	#endif // AMS_DEBUG
   /* USER CODE END 1 */
 
@@ -151,26 +146,25 @@ int main(void)
   MX_IWDG_Init();
   MX_RTC_Init();
   /* USER CODE BEGIN 2 */
-//	new_firmware_update();
-//	config_Get();
 	reboot_information_print();
-//	product_information_print();
-//	List_Init(sys.list);
-	//HAL_Delay(3000);
-//	HAL_UART_Receive_IT(&hlpuart1,(uint8_t*)&rxbuf_lp,1);
-//	HAL_UART_Receive_IT(&huart2,(uint8_t*)&rxbuf_2,1);
-//	My_UARTEx_StopModeWakeUp(&huart2);				//Enable serial port wake up
-//	My_UARTEx_StopModeWakeUp(&hlpuart1);			//Enable serial port wake up
-//	__HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
-	#ifdef AMS_DEBUG
-		HAL_GPIO_WritePin(Power_5v_GPIO_Port, Power_5v_Pin, GPIO_PIN_RESET); // AMS - set back after debugging pin off = 5v on
-		HAL_UART_Receive_DMA(&huart1,(uint8_t*)&uart1_nibble,uart1_nibble_size); // circular
-//	HAL_UARTEx_ReceiveToIdle_DMA(&huart1, uart1_nibble,uart1_nibble_size);
-//		HAL_StatusTypeDef res = HAL_UART_Receive_DMA(&huart1, (uint8_t*)&uart1_nibble,uart1_nibble_size);
-//		printf("start HAL_UART_Receive_DMA res = %u\r\n", res);
-		led_on(5000);
+	uint8_t UART1_DMA = HAL_UART_Receive_DMA(&huart1,(uint8_t*)&uart1_nibble,uart1_nibble_size); // circular
+	#ifndef AMS_DEBUG
+		new_firmware_update();
+		config_Get();
+		product_information_print();
+		List_Init(sys.list);
+//	HAL_Delay(3000);
+	HAL_UART_Receive_IT(&hlpuart1,(uint8_t*)&rxbuf_lp,1);
+	HAL_UART_Receive_IT(&huart2,(uint8_t*)&rxbuf_2,1);
+	My_UARTEx_StopModeWakeUp(&huart2);				//Enable serial port wake up
+	My_UARTEx_StopModeWakeUp(&hlpuart1);			//Enable serial port wake up
 	#else
-		HAL_UART_Receive_DMA(&huart1, (uint8_t*)&uart1_nibble,uart1_nibble_size);
+		user_main_debug("start HAL_UART_Receive_DMA res = %u\r\n", UART1_DMA);
+		HAL_GPIO_WritePin(Power_5v_GPIO_Port, Power_5v_Pin, GPIO_PIN_RESET); // AMS - set back after debugging pin off = 5v on
+//	HAL_UARTEx_ReceiveToIdle_DMA(&huart1, uart1_nibble,uart1_nibble_size);
+//	HAL_StatusTypeDef res = HAL_UART_Receive_DMA(&huart1, (uint8_t*)&uart1_nibble,uart1_nibble_size);
+//	__HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+		led_on(5000);
 	#endif // AMS_DEBUG
   /* USER CODE END 2 */
 
@@ -191,76 +185,89 @@ int main(void)
 #endif
   while (1)
   {
-		led_on(100);
 		#ifdef AMS_DEBUG
 			HAL_IWDG_Refresh(&hiwdg);
+			led_on(100);
 			loopcount++;
 			if ((loopcount % 100) < 1)
 			{
-				printf("loop %i |", loopcount);
+				user_main_debug("loop %i |", loopcount);
 			}
-		HAL_Delay(20);
+		#else
+			HAL_Delay(20);
 		#endif // AMS_DEBUG
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 		if(uart1_rx)
 		{
-			for (int i = 0; i < uart1_nibble_size; i++)
-			{
-				printf("%02x |", uart1_nibble[i]);
-	//				uart1_nibble[id] = 0;
-			}
-			if(uart1_nibble[0] == 0xff) // header
-			{
-				uint8_t checksum = (uart1_nibble[0]+uart1_nibble[1]+uart1_nibble[2])&0x00FF; ;
-				if(checksum==uart1_nibble[3])
+			#ifdef AMS_DEBUG
+				for (int i = 0; i < uart1_nibble_size; i++)
 				{
-					distance_uart1=(uart1_nibble[1]<<8) + uart1_nibble[2];
-					printf(" = %u mm\r\n",distance_uart1);
+					printf("%02x |", uart1_nibble[i]);
+		//				uart1_nibble[id] = 0;
+				}
+				if(uart1_nibble[0] == 0xff) // header
+				{
+					uint8_t checksum = (uart1_nibble[0]+uart1_nibble[1]+uart1_nibble[2])&0x00FF; ;
+					if(checksum==uart1_nibble[3])
+					{
+						distance_uart1=(uart1_nibble[1]<<8) + uart1_nibble[2];
+							printf(" = %u mm\r\n",distance_uart1);
+					}
+							else
+							{
+								printf("\r\n");
+							}
+				}
+				else if(uart1_nibble[2] == 0xff) // header
+				{
+					uint8_t checksum = (uart1_nibble[2]+uart1_nibble[3]+uart1_nibble[0])&0x00FF; ;
+					if(checksum==uart1_nibble[1])
+					{
+						distance_uart1=(uart1_nibble[3]<<8) + uart1_nibble[0];
+							printf(" = %u mm\r\n",distance_uart1);
+					}
+							else
+							{
+								printf("\r\n");
+							}
 				}
 				else
 				{
-					printf("\r\n");
+					printf(" unknown order\r\n");
 				}
-			}
-			else if(uart1_nibble[2] == 0xff) // header
-			{
-				uint8_t checksum = (uart1_nibble[2]+uart1_nibble[3]+uart1_nibble[0])&0x00FF; ;
-				if(checksum==uart1_nibble[1])
+				led_on(200);
+			#else
+				if(uart1_nibble[0] == 0xff) // header
 				{
-					distance_uart1=(uart1_nibble[3]<<8) + uart1_nibble[0];
-					printf(" = %u mm\r\n",distance_uart1);
+					uint8_t checksum = (uart1_nibble[0]+uart1_nibble[1]+uart1_nibble[2])&0x00FF; ;
+					if(checksum==uart1_nibble[3])
+					{
+						distance_uart1=(uart1_nibble[1]<<8) + uart1_nibble[2];
+					}
 				}
-				else
+				else if(uart1_nibble[2] == 0xff) // header
 				{
-					printf("\r\n");
+					uint8_t checksum = (uart1_nibble[2]+uart1_nibble[3]+uart1_nibble[0])&0x00FF; ;
+					if(checksum==uart1_nibble[1])
+					{
+						distance_uart1=(uart1_nibble[3]<<8) + uart1_nibble[0];
+					}
 				}
-			}
-			else
-			{
-				printf(" unknown order\r\n");
-	//			distance_uart1=(uint8_t)(uart1_nibble[3]<<8)+uart1_nibble[0];
-			}
-			led_on(200);
+				user_main_printf("A0221AU Distance = %d\r\n", distance_uart1);
+//				static uint8_t readings[3]; // how many
+//				static uint8_t i;
+//				if (i < 3)
+//				if (
+			#endif // AMS_DEBUG
 			uart1_rx = 0;
 		}
-
-		if (uart2_recieve_flag)
-			{
-				printf("rxDATA_2 = %s", (char*)rxDATA_2); 
-				memset(rxDATA_2, 0, rxlen_2);
-				rxlen_2 = 0;
-				uart2_recieve_flag	 = 0;
-				HAL_UART_Receive_IT(&huart1,(uint8_t*)&uart1_nibble,uart1_nibble_size);
-			}			
-		
-#ifdef NBIOT		
-		
+	
+	#ifdef NBIOT		
 		if(task_num != _AT_IDLE)
 		{
 			HAL_Delay(1000);
-			
 			if(NBTASK(&task_num) == _AT_ERROR)
 			{
 				error_num++;
@@ -278,16 +285,17 @@ int main(void)
 			task_num = _AT_URI;
 			nb.recieve_flag = NB_IDIE;
 		}
-#endif
+	#endif
 		
-//		USERTASK();
-
-//#ifdef lowpower_enter
-//		if(task_num == _AT_IDLE && uart2_recieve_flag==0)
-//		{
-//			LPM_EnterStopMode(SystemClock_Config);
-//		}
-//#endif
+	#ifndef AMS_DEBUG
+		USERTASK();
+		#ifdef lowpower_enter
+				if(task_num == _AT_IDLE && uart2_recieve_flag==0)
+				{
+					LPM_EnterStopMode(SystemClock_Config);
+				}
+		#endif
+	#endif // AMS_DEBUG
   }
   /* USER CODE END 3 */
 }
@@ -408,6 +416,7 @@ static void USERTASK(void)
 	}
 }
 
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if(huart == &hlpuart1) // modem
@@ -447,12 +456,15 @@ void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
 		task_num = _AT_CSQ;
 	
 	LPM_DisableStopMode();
+	user_main_printf("5v on\r\n");	
+	distance_uart1 = 0;
+	HAL_GPIO_WritePin(Power_5v_GPIO_Port, Power_5v_Pin, GPIO_PIN_RESET); // 5v on AMS added here to give time for a reading
 }
 
 void HAL_RTCEx_AlarmBEventCallback(RTC_HandleTypeDef *hrtc)
 {
 	HAL_IWDG_Refresh(&hiwdg);
-	printf("HAL_RTCEx_AlarmBEventCallback fed the dog\r\n"); //AMS should be every 5 sec
+	user_main_debug("HAL_RTCEx_AlarmBEventCallback fed the dog\r\n"); //AMS should be every 5 sec
 	
 #ifdef NBIOT	
 	if(sys.pwd_flag==1)

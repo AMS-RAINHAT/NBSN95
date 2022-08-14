@@ -30,6 +30,8 @@
 
 /* Exported constants --------------------------------------------------------*/
 /* External variables --------------------------------------------------------*/
+extern uint16_t distance_uart1;
+
 /* Exported macros -----------------------------------------------------------*/
 /* Exported functions ------------------------------------------------------- */ 
 /**
@@ -39,7 +41,7 @@
  * @retval None
  */
 
-#define AT_VERSION_STRING 	"v1.2.3"
+#define AT_VERSION_STRING 	"v1.2.4" //  Rain Hat - A0221AU
 #define stack 							"D-BC95-003"
 
 #define COAP_PRO  0x01

@@ -171,11 +171,13 @@ void txPayLoadDeal(SENSOR* Sensor,LinkedList L)
 	memset(sensor_raw_data,0,sizeof(sensor_raw_data));
 	Sensor->data_len = 0;
 	Sensor->singal = nb.singal;
-	
-	HAL_GPIO_WritePin(Power_5v_GPIO_Port, Power_5v_Pin, GPIO_PIN_RESET);
-	HAL_Delay(500+sys.power_time);
-	
-	Sensor->batteryLevel_mV = getVoltage();
+	user_main_debug("5v on\r\n");	
+	HAL_GPIO_WritePin(Power_5v_GPIO_Port, Power_5v_Pin, GPIO_PIN_RESET); // 5v on
+//	HAL_Delay(500+sys.power_time);
+//	while(distance_uart1 == 0){} // wait for a reading
+//	user_main_debug("txPayLoadDeal distance_uart1 = %d\r\n", distance_uart1);
+
+		Sensor->batteryLevel_mV = getVoltage();
 
 	for(int i=0;i<strlen((char*)user.deui);i++)
 		sprintf(Sensor->data+strlen(Sensor->data), "%c",  user.deui[i]);
@@ -210,16 +212,19 @@ void txPayLoadDeal(SENSOR* Sensor,LinkedList L)
 		sprintf(Sensor->data+strlen(Sensor->data), "%.3x", (Sensor->temSHT>=0)?Sensor->temSHT:Sensor->temSHT*(-1));
 		sprintf(Sensor->data+strlen(Sensor->data), "%.4x", Sensor->humSHT);
 	}
-	else if(sys.mod == model2)
+	else if(sys.mod == model2) // distance
 	{
 		Sensor->temDs18b20_1 = DS18B20_GetTemp_SkipRom(1)*10;
 		Sensor->adc0 = ADCModel(ADC_CHANNEL_0);
 //		Sensor->distance = LidarLite();
 //		if(sensor.distance == 4095)
 //		{
-			sensor.distance = 0;
+//			sensor.distance = 0;
 //			sensor.distance = ULT_distance();
-			sensor.distance = ULT_distance_async();
+			Sensor->distance = distance_uart1;
+			printf("Sensor->distance = %d\r\n", Sensor->distance);
+//			sensor.distance = distance_uart1;
+//			printf("sensor.distance = %d\r\n", sensor.distance);
 //			
 //			GPIO_ULT_INPUT_DeInit();
 //			GPIO_ULT_OUTPUT_DeInit();
@@ -231,8 +236,8 @@ void txPayLoadDeal(SENSOR* Sensor,LinkedList L)
 			sprintf(Sensor->data+strlen(Sensor->data), "%.2x", HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_12));
 		else
 			sprintf(Sensor->data+strlen(Sensor->data), "%.2x", Sensor->exit_state);
-		sprintf(Sensor->data+strlen(Sensor->data), "%.4x", Sensor->adc0);		
-		sprintf(Sensor->data+strlen(Sensor->data), "%.4x", Sensor->distance);
+			sprintf(Sensor->data+strlen(Sensor->data), "%.4x", Sensor->adc0);		
+			sprintf(Sensor->data+strlen(Sensor->data), "%.4x", Sensor->distance);
 	}
 	else if(sys.mod == model3)
 	{
@@ -331,7 +336,8 @@ void txPayLoadDeal(SENSOR* Sensor,LinkedList L)
 	user_main_debug("Sensor->data_len:%d",Sensor->data_len);
 	Sensor->exit_state = 0;
 	sys.exit_flag = 0;
-	HAL_GPIO_WritePin(Power_5v_GPIO_Port, Power_5v_Pin, GPIO_PIN_SET);
+	user_main_debug("5v off\r\n");	
+	HAL_GPIO_WritePin(Power_5v_GPIO_Port, Power_5v_Pin, GPIO_PIN_SET); // 5v off
 }
 
 
