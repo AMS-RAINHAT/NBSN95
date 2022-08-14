@@ -8,5 +8,5 @@ void GPIO_ULT_OUTPUT_Init(void);
 void GPIO_ULT_INPUT_DeInit(void);
 void GPIO_ULT_OUTPUT_DeInit(void);
 uint16_t ULT_distance(void);
-
+uint16_t ULT_distance_async(void);
 #endif

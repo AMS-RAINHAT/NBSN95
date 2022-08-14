@@ -79,12 +79,12 @@ void MX_USART1_UART_Init(void)
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
-  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.Mode = UART_MODE_RX;
   huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   huart1.Init.OverSampling = UART_OVERSAMPLING_16;
   huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
   huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-  if (HAL_UART_Init(&huart1) != HAL_OK)
+  if (HAL_HalfDuplex_Init(&huart1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -187,11 +187,10 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     __HAL_RCC_GPIOA_CLK_ENABLE();
     /**USART1 GPIO Configuration
     PA9     ------> USART1_TX
-    PA10     ------> USART1_RX
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_9|GPIO_PIN_10;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Pin = GPIO_PIN_9;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF4_USART1;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
@@ -205,8 +204,8 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     hdma_usart1_rx.Init.MemInc = DMA_MINC_ENABLE;
     hdma_usart1_rx.Init.PeriphDataAlignment = DMA_PDATAALIGN_BYTE;
     hdma_usart1_rx.Init.MemDataAlignment = DMA_MDATAALIGN_BYTE;
-    hdma_usart1_rx.Init.Mode = DMA_NORMAL;
-    hdma_usart1_rx.Init.Priority = DMA_PRIORITY_LOW;
+    hdma_usart1_rx.Init.Mode = DMA_CIRCULAR;
+    hdma_usart1_rx.Init.Priority = DMA_PRIORITY_HIGH;
     if (HAL_DMA_Init(&hdma_usart1_rx) != HAL_OK)
     {
       Error_Handler();
@@ -286,9 +285,8 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 
     /**USART1 GPIO Configuration
     PA9     ------> USART1_TX
-    PA10     ------> USART1_RX
     */
-    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_9|GPIO_PIN_10);
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_9);
 
     /* USART1 DMA DeInit */
     HAL_DMA_DeInit(uartHandle->hdmarx);
@@ -335,6 +333,27 @@ void My_UARTEx_StopModeWakeUp(UART_HandleTypeDef* uartHandle)
 	HAL_UARTEx_EnableStopMode(uartHandle);
 }
 
+//// redirect STOUT
+//#ifdef __GNUC__
+//	#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+//	int _write(int file, char *ptr, int len)
+//	{
+//		for(int DataIdx=0; DataIdx<len;DataIdx++)
+//		{
+//			HAL_UART_Transmit(&huart2, (uint8_t*)&*ptr, len, 100);
+//		}
+//		return len;
+//	}
+//#else
+//	// enable Microlib for this to work - AMS not sure why
+//	#define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
+//	PUTCHAR_PROTOTYPE;
+//	int fputc(int ch, FILE *f)
+//	{
+//		HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, 0xFFFF);
+//		return ch;
+//	}
+//#endif /* __GNUC__ */
 
 //#ifdef __GNUC__
 ///* With GCC, small printf (option LD Linker->Libraries->Small printf
@@ -344,14 +363,14 @@ void My_UARTEx_StopModeWakeUp(UART_HandleTypeDef* uartHandle)
 #define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
 //#endif /* __GNUC__ */
 
-uint8_t* ch;
+//uint8_t* ch;
 
 PUTCHAR_PROTOTYPE
 {
   /* Place your implementation of fputc here */
   /* e.g. write a character to the USART2 and Loop until the end of transmission */
-  HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, 0xFF);
-	__HAL_UART_CLEAR_IDLEFLAG(&huart2);
+  HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+//	__HAL_UART_CLEAR_IDLEFLAG(&huart2);
   return ch;
 }
 

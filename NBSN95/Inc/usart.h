@@ -57,7 +57,6 @@ void MX_USART2_UART_Init(void);
 #define user_main_printf(format, ...) 	printf("[%d]" format "\r\n",HAL_GetTick(),##__VA_ARGS__)
 			
 //#define USER_MAIN_DEBUG			
-
 #ifdef USER_MAIN_DEBUG
 	#define user_main_info(format, ...) 	printf("[main info]" format "\r\n", ##__VA_ARGS__)
 	#define user_main_debug(format, ...)  printf("[main debug]" format "\r\n", ##__VA_ARGS__)

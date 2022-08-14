@@ -32,17 +32,19 @@
 #include "at.h"
 #include "lowpower.h"
 #include "nbInit.h"
+#include "ultrasound.h" // AMS - remove once tested
+#include "stm32l0xx_hal.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
 /* debug macro definition ----------------------------------------------------*/
-//#define ST_DEBUG	
 
 /* NBIOT task macro definition, the task in NBTASK will not be executed after commenting out -*/
-#define NBIOT
+//#define NBIOT
 
+//#define ST_DEBUG	
 #ifndef ST_DEBUG
 	#define lowpower_enter
 #endif
@@ -50,6 +52,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define AMS_DEBUG
+#define uart1_nibble_size 4
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -60,9 +64,30 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-static uint8_t  rxbuf = 0;			
-static uint16_t rxlen = 0;
-static uint8_t  rxDATA[300]={0};
+// uint8_t	1 byte	max 255
+// uint16_t	2 bytes	max 65,535 unsigned - A 2-byte signed integer can have a range from -32,768 to 32,767
+// uint32_t 4 bytes 	max 4,294,967,295 unsigned, -2,147,483,648 to 2,147,483,647 signed
+// https://developer.arm.com/documentation/dui0472/k/C-and-C---Implementation-Details/Basic-data-types-in-ARM-C-and-C--
+
+#ifdef AMS_DEBUG
+	static uint32_t loopcount = 0; // AMS - remove once debugged
+#endif // AMS_DEBUG
+
+static uint16_t distance_uart1; // max 4000mm
+uint16_t get_distance_uart1(void) // return to extern
+{
+	return distance_uart1;
+}
+
+
+// USART1
+static uint8_t uart1_nibble[uart1_nibble_size] = {0};
+static uint8_t uart1_rx = 0; // flag
+
+// USART2
+static uint8_t  rxbuf_2 = 0;			
+static uint16_t rxlen_2 = 0;
+static uint8_t  rxDATA_2[300]={0};
 static uint8_t  uart2_recieve_flag = 0;
 
 static uint8_t rxbuf_lp;
@@ -95,7 +120,9 @@ static void USERTASK(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+	#ifdef AMS_DEBUG
+		__HAL_DBGMCU_FREEZE_IWDG(); // AMS - remove once debugged
+	#endif // AMS_DEBUG
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -104,7 +131,6 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -119,23 +145,33 @@ int main(void)
   MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_LPUART1_UART_Init();
-  MX_IWDG_Init();
-  MX_RTC_Init();
   MX_ADC_Init();
   MX_I2C1_Init();
   MX_USART1_UART_Init();
+  MX_IWDG_Init();
+  MX_RTC_Init();
   /* USER CODE BEGIN 2 */
-	new_firmware_update();
-	config_Get();
+//	new_firmware_update();
+//	config_Get();
 	reboot_information_print();
-	product_information_print();
-	List_Init(sys.list);
-	led_on(3000);
+//	product_information_print();
+//	List_Init(sys.list);
 	//HAL_Delay(3000);
-	HAL_UART_Receive_IT(&huart2,(uint8_t*)&rxbuf,RXSIZE);
-	HAL_UART_Receive_IT(&hlpuart1,(uint8_t*)&rxbuf_lp,RXSIZE);
-	My_UARTEx_StopModeWakeUp(&huart2);				//Enable serial port wake up
-	My_UARTEx_StopModeWakeUp(&hlpuart1);			//Enable serial port wake up
+//	HAL_UART_Receive_IT(&hlpuart1,(uint8_t*)&rxbuf_lp,1);
+//	HAL_UART_Receive_IT(&huart2,(uint8_t*)&rxbuf_2,1);
+//	My_UARTEx_StopModeWakeUp(&huart2);				//Enable serial port wake up
+//	My_UARTEx_StopModeWakeUp(&hlpuart1);			//Enable serial port wake up
+//	__HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
+	#ifdef AMS_DEBUG
+		HAL_GPIO_WritePin(Power_5v_GPIO_Port, Power_5v_Pin, GPIO_PIN_RESET); // AMS - set back after debugging pin off = 5v on
+		HAL_UART_Receive_DMA(&huart1,(uint8_t*)&uart1_nibble,uart1_nibble_size); // circular
+//	HAL_UARTEx_ReceiveToIdle_DMA(&huart1, uart1_nibble,uart1_nibble_size);
+//		HAL_StatusTypeDef res = HAL_UART_Receive_DMA(&huart1, (uint8_t*)&uart1_nibble,uart1_nibble_size);
+//		printf("start HAL_UART_Receive_DMA res = %u\r\n", res);
+		led_on(5000);
+	#else
+		HAL_UART_Receive_DMA(&huart1, (uint8_t*)&uart1_nibble,uart1_nibble_size);
+	#endif // AMS_DEBUG
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -153,13 +189,71 @@ int main(void)
 #else
 	task_num = _AT_IDLE;
 #endif
-	int loopcounter = 0;
   while (1)
   {
-		printf("loop %i\r\n", loopcounter++);
+		led_on(100);
+		#ifdef AMS_DEBUG
+			HAL_IWDG_Refresh(&hiwdg);
+			loopcount++;
+			if ((loopcount % 100) < 1)
+			{
+				printf("loop %i |", loopcount);
+			}
+		HAL_Delay(20);
+		#endif // AMS_DEBUG
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+		if(uart1_rx)
+		{
+			for (int i = 0; i < uart1_nibble_size; i++)
+			{
+				printf("%02x |", uart1_nibble[i]);
+	//				uart1_nibble[id] = 0;
+			}
+			if(uart1_nibble[0] == 0xff) // header
+			{
+				uint8_t checksum = (uart1_nibble[0]+uart1_nibble[1]+uart1_nibble[2])&0x00FF; ;
+				if(checksum==uart1_nibble[3])
+				{
+					distance_uart1=(uart1_nibble[1]<<8) + uart1_nibble[2];
+					printf(" = %u mm\r\n",distance_uart1);
+				}
+				else
+				{
+					printf("\r\n");
+				}
+			}
+			else if(uart1_nibble[2] == 0xff) // header
+			{
+				uint8_t checksum = (uart1_nibble[2]+uart1_nibble[3]+uart1_nibble[0])&0x00FF; ;
+				if(checksum==uart1_nibble[1])
+				{
+					distance_uart1=(uart1_nibble[3]<<8) + uart1_nibble[0];
+					printf(" = %u mm\r\n",distance_uart1);
+				}
+				else
+				{
+					printf("\r\n");
+				}
+			}
+			else
+			{
+				printf(" unknown order\r\n");
+	//			distance_uart1=(uint8_t)(uart1_nibble[3]<<8)+uart1_nibble[0];
+			}
+			led_on(200);
+			uart1_rx = 0;
+		}
+
+		if (uart2_recieve_flag)
+			{
+				printf("rxDATA_2 = %s", (char*)rxDATA_2); 
+				memset(rxDATA_2, 0, rxlen_2);
+				rxlen_2 = 0;
+				uart2_recieve_flag	 = 0;
+				HAL_UART_Receive_IT(&huart1,(uint8_t*)&uart1_nibble,uart1_nibble_size);
+			}			
 		
 #ifdef NBIOT		
 		
@@ -186,14 +280,14 @@ int main(void)
 		}
 #endif
 		
-		USERTASK();
+//		USERTASK();
 
-#ifdef lowpower_enter
-		if(task_num == _AT_IDLE && uart2_recieve_flag==0)
-		{
-			LPM_EnterStopMode(SystemClock_Config);
-		}
-#endif
+//#ifdef lowpower_enter
+//		if(task_num == _AT_IDLE && uart2_recieve_flag==0)
+//		{
+//			LPM_EnterStopMode(SystemClock_Config);
+//		}
+//#endif
   }
   /* USER CODE END 3 */
 }
@@ -212,17 +306,10 @@ void SystemClock_Config(void)
   */
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
-  /** Configure LSE Drive Capability
-  */
-  HAL_PWR_EnableBkUpAccess();
-  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_LOW);
-
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSI
-                              |RCC_OSCILLATORTYPE_LSE;
-  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.LSIState = RCC_LSI_ON;
@@ -255,7 +342,7 @@ void SystemClock_Config(void)
   PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_HSI;
   PeriphClkInit.Lpuart1ClockSelection = RCC_LPUART1CLKSOURCE_HSI;
   PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_HSI;
-  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
+  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSI;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
@@ -272,8 +359,8 @@ static void USERTASK(void)
 	
 	if(sys.pwd_flag == 0 && uart2_recieve_flag)
 	{
-		rtrim((char*)rxDATA);
-		if(strcmp((char*)rxDATA,(char*)sys.pwd) == 0 && strlen((char*)rxDATA) < 9)
+		rtrim((char*)rxDATA_2);
+		if(strcmp((char*)rxDATA_2,(char*)sys.pwd) == 0 && strlen((char*)rxDATA_2) < 9)
 		{
 			user_main_printf("Password Correct");
 			sys.pwd_flag = 1;
@@ -285,7 +372,7 @@ static void USERTASK(void)
 	}
 	else if(sys.pwd_flag != 0 && uart2_recieve_flag)
 	{
-		ATEerror_t AT_State = ATInsPro((char*)rxDATA);
+		ATEerror_t AT_State = ATInsPro((char*)rxDATA_2);
 		if(AT_State == AT_OK)
 			printf("%s\r\n",ATError_description[AT_OK]);
 		else if(AT_State == AT_PARAM_ERROR)
@@ -300,17 +387,17 @@ static void USERTASK(void)
 		{
 			nb.usart.len = 0;
 			memset(nb.usart.data,0,NB_RX_SIZE);
-			rxDATA[strlen((char*)rxDATA)] = '\n';
-			HAL_UART_Transmit_DMA(&hlpuart1,(uint8_t*)rxDATA,strlen((char*)rxDATA));		
+			rxDATA_2[strlen((char*)rxDATA_2)] = '\n';
+			HAL_UART_Transmit_DMA(&hlpuart1,(uint8_t*)rxDATA_2,strlen((char*)rxDATA_2));		
 			HAL_Delay(500);					//Waiting to Send
 		}
 	}
 		
 	if(uart2_recieve_flag == 1)
 	{
-		rxlen = 0;
+		rxlen_2 = 0;
 		uart2_recieve_flag = 0;
-		memset(rxDATA,0,sizeof(rxDATA));
+		memset(rxDATA_2,0,sizeof(rxDATA_2));
 	}
 	if(lpuart_recieve_flag == 1)
 	{
@@ -323,7 +410,7 @@ static void USERTASK(void)
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-	if(huart == &hlpuart1)
+	if(huart == &hlpuart1) // modem
 	{
 		nb.usart.data[nb.usart.len++] = rxbuf_lp;	
 		if(task_num == _AT_IDLE)
@@ -333,21 +420,27 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 				lpuart_recieve_flag = 1;
 			}
 		}
-		HAL_UART_Receive_IT(&hlpuart1,(uint8_t*)&rxbuf_lp,RXSIZE);		
+		HAL_UART_Receive_IT(&hlpuart1,(uint8_t*)&rxbuf_lp,1);		
 	}
-	else if(huart == &huart2)
+	else if(huart == &huart1) // Async sensor A02YYUW/A0221AU 
 	{
-		rxDATA[rxlen++] = rxbuf;
-		if(rxbuf == '\r' || rxbuf == '\n')
+		uart1_rx = 1;
+		//		HAL_UART_DMAPause(&huart1);
+	}
+	else if(huart == &huart2) // console
+	{
+		rxDATA_2[rxlen_2++] = rxbuf_2;
+		if(rxbuf_2 == '\r' || rxbuf_2 == '\n')
 		{
 			uart2_recieve_flag = 1;		
 		}
-		HAL_UART_Receive_IT(&huart2,(uint8_t*)&rxbuf,RXSIZE);
+		HAL_UART_Receive_IT(&huart2,(uint8_t*)&rxbuf_2,1);
 	}
 }
 
 void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
 {
+	printf("HAL_RTC_AlarmAEventCallback - kick off upload\r\n"); //AMS should be every 5 sec
 	if(nb.net_flag == no_status)
 		task_num = _AT_FLAG_INIT;
 	else if(nb.net_flag == success && nb.uplink_flag == no_status)
@@ -359,6 +452,7 @@ void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
 void HAL_RTCEx_AlarmBEventCallback(RTC_HandleTypeDef *hrtc)
 {
 	HAL_IWDG_Refresh(&hiwdg);
+	printf("HAL_RTCEx_AlarmBEventCallback fed the dog\r\n"); //AMS should be every 5 sec
 	
 #ifdef NBIOT	
 	if(sys.pwd_flag==1)

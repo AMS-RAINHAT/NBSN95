@@ -9,7 +9,7 @@
 #include "string.h"
 #include "usart.h"
 #include "adc.h"
-#include "iwdg.h"
+//#include "iwdg.h" // AMS temp disable
 #include "i2c.h"
 
 #include "at.h"

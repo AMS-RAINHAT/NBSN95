@@ -214,15 +214,16 @@ void txPayLoadDeal(SENSOR* Sensor,LinkedList L)
 	{
 		Sensor->temDs18b20_1 = DS18B20_GetTemp_SkipRom(1)*10;
 		Sensor->adc0 = ADCModel(ADC_CHANNEL_0);
-		Sensor->distance = LidarLite();
-		if(sensor.distance == 4095)
-		{
+//		Sensor->distance = LidarLite();
+//		if(sensor.distance == 4095)
+//		{
 			sensor.distance = 0;
-			sensor.distance = ULT_distance();
-			
-			GPIO_ULT_INPUT_DeInit();
-			GPIO_ULT_OUTPUT_DeInit();
-		}
+//			sensor.distance = ULT_distance();
+			sensor.distance = ULT_distance_async();
+//			
+//			GPIO_ULT_INPUT_DeInit();
+//			GPIO_ULT_OUTPUT_DeInit();
+//		}
 		
 		sprintf(Sensor->data+strlen(Sensor->data), "%c", (Sensor->temDs18b20_1>=0)?'0':'F');
 		sprintf(Sensor->data+strlen(Sensor->data), "%.3x",(Sensor->temDs18b20_1>=0)?Sensor->temDs18b20_1:Sensor->temDs18b20_1*(-1));		
