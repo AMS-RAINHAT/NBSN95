@@ -41,8 +41,8 @@ nbsn95/ds18b20.o: ..\Drivers\BSP\src\ds18b20.c \
   C:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdio.h \
   C:\Keil_v5\ARM\ARMCLANG\Bin\..\include\stdlib.h \
   C:\Keil_v5\ARM\ARMCLANG\Bin\..\include\string.h ..\Inc\usart.h \
-  ..\Inc\main.h ..\Inc\adc.h ..\Inc\i2c.h ..\Drivers\BSP\inc\at.h \
-  C:\Keil_v5\ARM\ARMCLANG\Bin\..\include\ctype.h \
+  ..\Inc\main.h ..\Inc\adc.h ..\Inc\iwdg.h ..\Inc\i2c.h \
+  ..\Drivers\BSP\inc\at.h C:\Keil_v5\ARM\ARMCLANG\Bin\..\include\ctype.h \
   ..\Drivers\BSP\inc\flash_eraseprogram.h \
   ..\Drivers\BSP\inc\time_server.h ..\Inc\rtc.h \
   ..\Drivers\BSP\inc\battery_read.h ..\Drivers\BSP\inc\sht20.h \

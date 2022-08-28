@@ -86,14 +86,14 @@ uint16_t ULT_distance(void)
 			user_main_debug("distance:%d",distance);
 			if((distance<240)||(distance>6000))
 			{
-				user_main_printf("Distance is out of range");
+				user_main_info("Distance is out of range");
 				error_num++;
 				if(error_num==9)				
 					break;
 			}
 			else
 			{
-				user_main_printf("Distance=%d mm",distance);
+				user_main_info("Distance=%d mm",distance);
 				return distance;
 			}
 		}
@@ -101,7 +101,7 @@ uint16_t ULT_distance(void)
 	
 	else
 	{
-		user_main_printf("ULT is not connect");
+		user_main_info("ULT is not connect");
 		return distance;
 	}	
 	

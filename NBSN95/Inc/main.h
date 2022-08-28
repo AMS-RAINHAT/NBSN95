@@ -48,6 +48,8 @@ extern "C" {
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
 
+#define AMS_DEBUG 	// only perform UART1 interface for A0221AU ultrasonic sensor
+
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/

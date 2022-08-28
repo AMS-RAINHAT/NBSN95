@@ -9,7 +9,7 @@
 #include "string.h"
 #include "usart.h"
 #include "adc.h"
-//#include "iwdg.h" // AMS temp disable
+#include "iwdg.h"
 #include "i2c.h"
 
 #include "at.h"
@@ -22,6 +22,7 @@
 #include "ultrasound.h"
 #include "weight.h"
 
+#include "main.h"
 #ifdef __cplusplus
  extern "C" {
 #endif
@@ -41,7 +42,12 @@ extern uint16_t distance_uart1;
  * @retval None
  */
 
-#define AT_VERSION_STRING 	"v1.2.4" //  Rain Hat - A0221AU
+#ifdef AMS_DEBUG
+	#define AT_VERSION_STRING 	"v1.2.5-AMS dev" //  Rain Hat - alpha A0221AU
+#else
+	#define AT_VERSION_STRING 	"v1.2.5-a1" //  Rain Hat - A0221AU
+#endif // AMS_DEBUG
+
 #define stack 							"D-BC95-003"
 
 #define COAP_PRO  0x01

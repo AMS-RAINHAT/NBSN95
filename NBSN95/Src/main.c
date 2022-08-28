@@ -15,6 +15,9 @@
   *                        opensource.org/licenses/BSD-3-Clause
   *
   ******************************************************************************
+	AMS 25Aug22 - added support for A0221AU ultra-sonic which is similar to A02YYUW
+	which sends a byte every 300µs over serial - (see ultrasound.c for details). I setup 
+	UART1 to RX only.
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
@@ -32,7 +35,7 @@
 #include "at.h"
 #include "lowpower.h"
 #include "nbInit.h"
-#include "ultrasound.h" // AMS - remove once tested
+#include "ultrasound.h"
 #include "stm32l0xx_hal.h"
 /* USER CODE END Includes */
 
@@ -40,9 +43,6 @@
 /* USER CODE BEGIN PTD */
 
 /* debug macro definition ----------------------------------------------------*/
-
-/* NBIOT task macro definition, the task in NBTASK will not be executed after commenting out -*/
-#define NBIOT
 
 //#define ST_DEBUG	
 #ifndef ST_DEBUG
@@ -52,7 +52,10 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-//#define AMS_DEBUG 	// only perform UART1 interface for A0221AU ultrasonic sensor
+
+/* NBIOT task macro definition, the task in NBTASK will not be executed after commenting out -*/
+#define NBIOT
+
 #define uart1_nibble_size 4
 /* USER CODE END PD */
 
@@ -69,7 +72,7 @@
 // uint32_t 4 bytes 	max 4,294,967,295 unsigned, -2,147,483,648 to 2,147,483,647 signed
 // https://developer.arm.com/documentation/dui0472/k/C-and-C---Implementation-Details/Basic-data-types-in-ARM-C-and-C--
 
-#ifdef AMS_DEBUG
+#ifdef AMS_DEBUG // defined in main.h
 	static uint32_t loopcount = 0; // AMS - remove once debugged
 #endif // AMS_DEBUG
 
@@ -116,6 +119,7 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
 	#ifdef AMS_DEBUG
+		__HAL_RCC_DBGMCU_CLK_ENABLE();
 		__HAL_DBGMCU_FREEZE_IWDG(); // AMS - remove once debugged - did not work
 	#endif // AMS_DEBUG
   /* USER CODE END 1 */
@@ -147,24 +151,27 @@ int main(void)
   MX_RTC_Init();
   /* USER CODE BEGIN 2 */
 	reboot_information_print();
-	uint8_t UART1_DMA = HAL_UART_Receive_DMA(&huart1,(uint8_t*)&uart1_nibble,uart1_nibble_size); // circular
 	#ifndef AMS_DEBUG
 		new_firmware_update();
-		config_Get();
-		product_information_print();
-		List_Init(sys.list);
-//	HAL_Delay(3000);
-	HAL_UART_Receive_IT(&hlpuart1,(uint8_t*)&rxbuf_lp,1);
-	HAL_UART_Receive_IT(&huart2,(uint8_t*)&rxbuf_2,1);
-	My_UARTEx_StopModeWakeUp(&huart2);				//Enable serial port wake up
-	My_UARTEx_StopModeWakeUp(&hlpuart1);			//Enable serial port wake up
-	#else
-		user_main_debug("start HAL_UART_Receive_DMA res = %u\r\n", UART1_DMA);
+	#endif // AMS_DEBUG
+	config_Get();
+	product_information_print();
+	#ifdef AMS_DEBUG
+		user_main_info("start HAL_UART_Receive_DMA res = %u\r\n", UART1_DMA);
+		uint8_t UART1_DMA = HAL_UART_Receive_DMA(&huart1,(uint8_t*)&uart1_nibble,uart1_nibble_size); // circular
+		user_main_info("5v on\r\n");
 		HAL_GPIO_WritePin(Power_5v_GPIO_Port, Power_5v_Pin, GPIO_PIN_RESET); // AMS - set back after debugging pin off = 5v on
 //	HAL_UARTEx_ReceiveToIdle_DMA(&huart1, uart1_nibble,uart1_nibble_size);
 //	HAL_StatusTypeDef res = HAL_UART_Receive_DMA(&huart1, (uint8_t*)&uart1_nibble,uart1_nibble_size);
 //	__HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
 		led_on(5000);
+	#else
+		List_Init(sys.list);
+		//	HAL_Delay(3000);
+		HAL_UART_Receive_IT(&hlpuart1,(uint8_t*)&rxbuf_lp,1);
+		HAL_UART_Receive_IT(&huart2,(uint8_t*)&rxbuf_2,1);
+		My_UARTEx_StopModeWakeUp(&huart2);				//Enable serial port wake up
+		My_UARTEx_StopModeWakeUp(&hlpuart1);			//Enable serial port wake up
 	#endif // AMS_DEBUG
   /* USER CODE END 2 */
 
@@ -255,7 +262,7 @@ int main(void)
 						distance_uart1=(uart1_nibble[3]<<8) + uart1_nibble[0];
 					}
 				}
-				user_main_printf("A0221AU Distance = %d\r\n", distance_uart1);
+				user_main_info("A0221AU Distance = %d\r\n", distance_uart1);
 //				static uint8_t readings[3]; // how many
 //				static uint8_t i;
 //				if (i < 3)
@@ -265,6 +272,7 @@ int main(void)
 		}
 	
 	#ifdef NBIOT		
+		user_main_debug("NBIOT task_num = %i", task_num);
 		if(task_num != _AT_IDLE)
 		{
 			HAL_Delay(1000);
@@ -287,15 +295,15 @@ int main(void)
 		}
 	#endif
 		
-	#ifndef AMS_DEBUG
+//	#ifndef AMS_DEBUG
 		USERTASK();
 		#ifdef lowpower_enter
 				if(task_num == _AT_IDLE && uart2_recieve_flag==0)
 				{
 					LPM_EnterStopMode(SystemClock_Config);
 				}
-		#endif
-	#endif // AMS_DEBUG
+		#endif // lowpower_enter
+//	#endif // AMS_DEBUG
   }
   /* USER CODE END 3 */
 }
@@ -449,15 +457,15 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
 {
-	printf("HAL_RTC_AlarmAEventCallback - kick off upload\r\n"); //AMS should be every 5 sec
+	user_main_debug("HAL_RTC_AlarmAEventCallback - kick off upload\r\n"); //AMS should be every 5 sec
 	if(nb.net_flag == no_status)
 		task_num = _AT_FLAG_INIT;
 	else if(nb.net_flag == success && nb.uplink_flag == no_status)
 		task_num = _AT_CSQ;
 	
 	LPM_DisableStopMode();
-	user_main_printf("5v on\r\n");	
 	distance_uart1 = 0;
+	user_main_debug("5v on\r\n");	
 	HAL_GPIO_WritePin(Power_5v_GPIO_Port, Power_5v_Pin, GPIO_PIN_RESET); // 5v on AMS added here to give time for a reading
 }
 
